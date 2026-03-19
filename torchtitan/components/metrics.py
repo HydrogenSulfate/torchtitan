@@ -133,7 +133,7 @@ class TensorBoardLogger(BaseLogger):
 class WandBLogger(BaseLogger):
     """Logger implementation for Weights & Biases."""
 
-    def __init__(self, log_dir: str, job_config: JobConfig, tag: str | None = None):
+    def __init__(self, log_dir: str, job_config: JobConfig, tag: str | None = None, model_config_path: str | None = None):
         # Import wandb here to avoid startup import
         import wandb
 
@@ -148,6 +148,16 @@ class WandBLogger(BaseLogger):
             dir=log_dir,
             config=job_config.to_dict(),
         )
+        # ↓ 新增：将模型配置 JSON 以 artifact 方式上传
+        if model_config_path is not None and os.path.isfile(model_config_path):
+            artifact = self.wandb.Artifact(
+                name="model_config",
+                type="model_config",
+                description="Model architecture config JSON",
+            )
+            artifact.add_file(model_config_path)
+            self.wandb.log_artifact(artifact)
+            logger.info(f"Uploaded model config artifact: {model_config_path}")
         logger.info("WandB logging enabled")
 
     def log(self, metrics: dict[str, Any], step: int) -> None:
@@ -223,7 +233,8 @@ def _get_metrics_rank(
 
 
 def _build_metric_logger(
-    job_config: JobConfig, parallel_dims: ParallelDims, tag: str | None = None
+    job_config: JobConfig, parallel_dims: ParallelDims, tag: str | None = None,
+    model_config_path: str | None = None,   # ← 新增参数
 ) -> BaseLogger:
     """
     Build an appropriate metric logger based on configuration.
@@ -270,7 +281,7 @@ def _build_metric_logger(
     if metrics_config.enable_wandb:
         logger.debug("Attempting to create WandB logger")
         try:
-            return WandBLogger(base_log_dir, job_config, tag)
+            return WandBLogger(base_log_dir, job_config, tag, model_config_path)
         except Exception as e:
             if "No module named 'wandb'" in str(e):
                 logger.error(
@@ -319,8 +330,9 @@ class MetricsProcessor:
         job_config: JobConfig,
         parallel_dims: ParallelDims,
         tag: str | None = None,
+        model_config_path: str | None = None,   # ← 新增参数
     ):
-        self.logger = _build_metric_logger(job_config, parallel_dims, tag)
+        self.logger = _build_metric_logger(job_config, parallel_dims, tag, model_config_path)
         self.parallel_dims = parallel_dims
         self.job_config = job_config
         self.device_memory_monitor = build_device_memory_monitor()
@@ -421,6 +433,7 @@ def build_metrics_processor(
     parallel_dims: ParallelDims,
     model_args: "BaseModelArgs | None" = None,
     tag: str | None = None,
+    model_config_path: str | None = None,   # ← 新增参数
 ) -> MetricsProcessor:
     """Create a metrics processor.
 
@@ -433,4 +446,4 @@ def build_metrics_processor(
     Returns:
         MetricsProcessor: A metrics processor.
     """
-    return MetricsProcessor(job_config, parallel_dims, tag)
+    return MetricsProcessor(job_config, parallel_dims, tag, model_config_path)
