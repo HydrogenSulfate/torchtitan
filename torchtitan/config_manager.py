@@ -152,6 +152,12 @@ class Optimizer:
     register_post_accumulate_grad_hook after the optimizer is built.
     """
 
+    no_weight_decay_keys: list[str] = field(default_factory=list)
+    """
+    Comma-separated list of parameter name substrings to exclude from weight decay.
+    e.g. --optimizer.no_weight_decay_keys "dt_bias,A_log"
+    """
+
 
 @dataclass
 class LRScheduler:

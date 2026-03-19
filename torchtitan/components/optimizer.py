@@ -6,6 +6,7 @@
 
 import functools
 from typing import Any, Generic, Iterator, TypeVar
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
@@ -22,6 +23,7 @@ from torchtitan.config_manager import JobConfig
 
 __all__ = [
     "OptimizersContainer",
+    "OptimizersContainerWithDecayGroups",
     "build_optimizers",
 ]
 
@@ -62,19 +64,60 @@ class OptimizersContainer(Optimizer, Stateful, Generic[T]):
     optimizers: list[T]
     model_parts: list[nn.Module]
 
+    def _no_weight_decay(self, name, param) -> bool:
+        is_no_weight_decay = any([k in name for k in self._no_weight_decay_keys])
+        if is_no_weight_decay and param.ndim > 1:
+            print(f"\033[93mWarning: Parameter '{name}' with shape={param.shape} is excluded from weight decay. Typically, only 1D parameters are expected be excluded.\033[0m")
+
+        return is_no_weight_decay
+
     def __init__(
         self,
         model_parts: list[nn.Module],
         optimizer_cls: type[T],
         optimizer_kwargs: dict[str, Any],
+        no_weight_decay_keys: list[str] | None = None,
     ) -> None:
         all_params = []
         self.optimizers = []
         self.model_parts = model_parts
-        for model in self.model_parts:
-            params = [p for p in model.parameters() if p.requires_grad]
-            self.optimizers.append(optimizer_cls(params, **optimizer_kwargs))
-            all_params.extend(params)
+        self._no_weight_decay_keys = no_weight_decay_keys or []
+
+        if not self._no_weight_decay_keys:
+            for model in self.model_parts:
+                params = [p for p in model.parameters() if p.requires_grad]
+                self.optimizers.append(optimizer_cls(params, **optimizer_kwargs))
+                all_params.extend(params)
+        else:
+            for model in self.model_parts:
+                # 分成两组
+                decay_params = []
+                no_decay_params = []
+                no_wd_names = []
+                for name, param in model.named_parameters():
+                    if self._no_weight_decay(name, param):
+                        no_decay_params.append(param)
+                        no_wd_names.append(name)
+                    else:
+                        decay_params.append(param)
+
+                if decay_params:
+                    all_params.append({
+                        "params": decay_params,
+                        "weight_decay": optimizer_kwargs["weight_decay"],
+                    })
+                if no_decay_params:
+                    all_params.append({
+                        "params": no_decay_params,
+                        "weight_decay": 0.0,  # ← 关键：这些参数不做 weight decay
+                    })
+
+                # 移除全局 kwargs 中的 weight_decay，因为已经在 all_params 中指定了
+                kwargs_without_wd = {
+                    k: v for k, v in optimizer_kwargs.items() if k != "weight_decay"
+                }
+                print(f"\033[92mParameters excluded from weight decay(number={len(no_wd_names)}): {no_wd_names}\033[0m")
+            self.optimizers.append(optimizer_cls(all_params, **kwargs_without_wd))
         self._validate_length(len(self.model_parts))
         self._post_init(all_params, optimizer_kwargs)
 
@@ -278,6 +321,7 @@ def build_optimizers(
     fused = optim_implementation == "fused"
     foreach = optim_implementation == "foreach"
 
+    no_weight_decay_keys = job_config.optimizer.no_weight_decay_keys
     optimizer_kwargs = {
         "lr": lr,
         "betas": (beta1, beta2),
@@ -298,10 +342,12 @@ def build_optimizers(
     if optim_in_bwd and ft_manager.enabled:
         raise ValueError("TorchFT is not supported with optimizers in backward.")
     elif optim_in_bwd:
+        assert not no_weight_decay_keys, f"no_weight_decay_keys not support in this branch"
         return OptimizersInBackwardContainer(
             model_parts, optimizer_cls, optimizer_kwargs
         )
     elif ft_manager.enabled:
+        assert not no_weight_decay_keys, f"no_weight_decay_keys not support in this branch"
         return FTOptimizersContainer(
             model_parts,
             optimizer_cls,
@@ -310,4 +356,7 @@ def build_optimizers(
             use_ft_optimizer=job_config.fault_tolerance.semi_sync_method is None,
         )
     else:
-        return OptimizersContainer(model_parts, optimizer_cls, optimizer_kwargs)
+        return OptimizersContainer(
+            model_parts, optimizer_cls, optimizer_kwargs,
+            no_weight_decay_keys=no_weight_decay_keys,
+        )
