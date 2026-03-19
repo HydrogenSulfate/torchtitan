@@ -92,6 +92,14 @@ def get_peak_flops(device_name: str) -> int:
             return 756e12
         else:  # for H100 SXM and other variants
             return 989e12
+    elif "H800" in device_name:
+        # data from https://chaoqing-i.com/upload/20231128/NVIDIA%20H800%20GPU%20Datasheet.pdf
+        # NOTE: Specifications are one-half lower without sparsity.
+        # H800 has no NVL variant (NVL is H100-specific)
+        if "PCIe" in device_name:
+            return 756e12
+        else:  # for H800 SXM and other variants
+            return 989e12
     elif "H200" in device_name:
         # data from https://www.nvidia.com/en-us/data-center/h200/
         return 989e12
