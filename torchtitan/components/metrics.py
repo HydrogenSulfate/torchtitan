@@ -150,8 +150,12 @@ class WandBLogger(BaseLogger):
         )
         # ↓ 新增：将模型配置 JSON 以 artifact 方式上传
         if model_config_path is not None and os.path.isfile(model_config_path):
+            # 用 wandb run name 作为 artifact name，与 wandb_history 命名保持一致
+            # wandb.run.name 即 UI 中显示的 run 名，例如：
+            #   transformer-batch8.seqlen8192.warmup1024.update2.steps28672.lr1e-3-202603011502
+            run_name = self.wandb.run.name or self.wandb.run.id
             artifact = self.wandb.Artifact(
-                name="model_config",
+                name=f"{run_name}",
                 type="model_config",
                 description="Model architecture config JSON",
             )
