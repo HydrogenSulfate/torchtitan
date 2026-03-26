@@ -143,13 +143,13 @@ class WandBLogger(BaseLogger):
         # Create logging directory
         os.makedirs(log_dir, exist_ok=True)
 
-        self.wandb.init(
+        _run = self.wandb.init(
             project=os.getenv("WANDB_PROJECT", "torchtitan"),
             dir=log_dir,
             config=job_config.to_dict(),
         )
         # ↓ 新增：将模型配置 JSON 以 artifact 方式上传
-        if model_config_path is not None and os.path.isfile(model_config_path):
+        if model_config_path is not None and os.path.isfile(model_config_path) and _run.settings.mode != "disabled":
             # 用 wandb run name 作为 artifact name，与 wandb_history 命名保持一致
             # wandb.run.name 即 UI 中显示的 run 名，例如：
             #   transformer-batch8.seqlen8192.warmup1024.update2.steps28672.lr1e-3-202603011502
@@ -162,7 +162,10 @@ class WandBLogger(BaseLogger):
             artifact.add_file(model_config_path)
             self.wandb.log_artifact(artifact)
             logger.info(f"Uploaded model config artifact: {model_config_path}")
-        logger.info("WandB logging enabled")
+        if _run.settings.mode != "disabled":
+            logger.info(f"WandB logging enabled")
+        else:
+            logger.info(f"WandB logging mode: {_run.settings.mode}")
 
     def log(self, metrics: dict[str, Any], step: int) -> None:
         wandb_metrics = {
