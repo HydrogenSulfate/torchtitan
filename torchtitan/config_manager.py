@@ -158,6 +158,16 @@ class Optimizer:
     e.g. --optimizer.no_weight_decay_keys "dt_bias,A_log"
     """
 
+    # Muon related args
+    mu: float = 0.95
+    """Muon momentum factor. Only used when name='Muon'."""
+
+    adjust_lr: Literal["spectral_norm", "rms_norm", "none"] = "spectral_norm"
+    """Muon learning rate adjustment method. Only used when name='Muon'."""
+
+    # muon_fallback_algorithm: Literal["adamw", "lion"] = "adamw"
+    # """Algorithm to use for non-2D-weight parameters in Muon. Only used when name='Muon'."""
+
 
 @dataclass
 class LRScheduler:

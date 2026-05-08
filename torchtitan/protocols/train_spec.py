@@ -23,6 +23,7 @@ from torchtitan.components.metrics import MetricsProcessor
 from torchtitan.components.optimizer import OptimizersContainer
 from torchtitan.components.tokenizer import Tokenizer
 from torchtitan.config_manager import JobConfig
+from torchtitan.distributed import ParallelDims
 
 DeviceType = int | str | torch.device
 
@@ -71,7 +72,7 @@ DataLoaderBuilder: TypeAlias = Callable[..., BaseDataLoader]
 TokenizerBuilder: TypeAlias = Callable[..., Tokenizer]
 MetricsProcessorBuilder: TypeAlias = Callable[..., MetricsProcessor]
 OptimizersBuilder: TypeAlias = Callable[
-    [list[nn.Module], JobConfig, FTManager], OptimizersContainer
+    [list[nn.Module], JobConfig, ParallelDims, FTManager], OptimizersContainer
 ]
 LRSchedulersBuilder: TypeAlias = Callable[
     [OptimizersContainer, JobConfig], LRSchedulersContainer

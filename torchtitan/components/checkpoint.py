@@ -442,6 +442,7 @@ class CheckpointManager:
             if step == -1:
                 return False
             model_only = step == 0
+            # model_only = self.initial_load_model_weights_only
             checkpoint_id = self._create_checkpoint_id(step)
 
             if not os.path.isdir(checkpoint_id):
@@ -449,7 +450,7 @@ class CheckpointManager:
                     f"--checkpoint.load_step={step} but checkpoint {checkpoint_id} is not found."
                 )
 
-        logger.info(f"Loading the checkpoint from {checkpoint_id}.")
+        logger.info(f"Loading the checkpoint from {checkpoint_id}")
         begin = time.monotonic()
         states = self._states_to_load(model_only)
         dcp.load(states, checkpoint_id=checkpoint_id)
