@@ -182,7 +182,9 @@ def _is_muon_param(name: str, param: nn.Parameter) -> bool:
     Muon's Newton-Schulz orthogonalization is only applicable to 2D weight
     matrices. Embeddings and the output projection (lm_head) use AdamW instead.
     """
-    if param.ndim != 2:
+    if param.ndim != 2 or min(param.shape) == 1:
+        return False
+    if getattr(param, "_is_attnres_proj", False):
         return False
     if "tok_embeddings" in name or "embed" in name:
         return False
