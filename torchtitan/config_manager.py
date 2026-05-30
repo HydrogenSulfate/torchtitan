@@ -251,6 +251,9 @@ class Training:
     compile: bool = False
     """Whether to compile the model"""
 
+    compile_max_autotune: bool = False
+    """Set "mode=max-autotune" when compile the model"""
+
     gc_freq: int = 50
     """Python garbage control scheduling interval, in steps"""
 
